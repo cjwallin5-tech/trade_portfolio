@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>List your work — Fieldsheet</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="/">
+      <span class="mark">field<em>sheet</em></span>
+      <span class="sub">trade directory</span>
+    </a>
+    <nav class="site-nav">
+      <a href="/index.html">Browse</a>
+      <a href="/join.html" class="cta">List your work</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="form-page" id="form-page">
+    <div class="kicker" style="font-family: var(--mono); font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-dark); margin-bottom: 10px;">List your work</div>
+    <h1 style="font-size: 28px;">Put your jobs in front of people who are actually looking.</h1>
+    <p style="max-width: 560px;">Fill this out once. Add a few photos of finished work — that's what people look at first. You'll get a private link at the end to see booking requests as they come in, so save it somewhere.</p>
+
+    <div id="join-notice"></div>
+
+    <form id="join-form">
+      <fieldset>
+        <legend>Basics</legend>
+        <div class="two-col">
+          <div class="field">
+            <label for="jf-name">Name or business name</label>
+            <input type="text" id="jf-name" required>
+          </div>
+          <div class="field">
+            <label for="jf-trade">Trade</label>
+            <select id="jf-trade" required>
+              <option value="" disabled selected>Choose one…</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="jf-tagline">One line about what you do</label>
+          <input type="text" id="jf-tagline" placeholder="e.g. Panel upgrades, rewires, and troubleshooting" maxlength="120">
+        </div>
+        <div class="field">
+          <label for="jf-bio">Background</label>
+          <textarea id="jf-bio" placeholder="How long you've been doing this, what kind of jobs you take, anything someone hiring you should know."></textarea>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Contact & credentials</legend>
+        <div class="two-col">
+          <div class="field">
+            <label for="jf-location">City & state</label>
+            <input type="text" id="jf-location" required placeholder="e.g. Columbus, OH">
+          </div>
+          <div class="field">
+            <label for="jf-years">Years in business</label>
+            <input type="number" id="jf-years" min="0" max="80">
+          </div>
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label for="jf-phone">Phone</label>
+            <input type="tel" id="jf-phone" required>
+          </div>
+          <div class="field">
+            <label for="jf-email">Email</label>
+            <input type="email" id="jf-email" required>
+          </div>
+        </div>
+        <div class="field">
+          <label for="jf-license">License number (if your trade requires one)</label>
+          <input type="text" id="jf-license" placeholder="Leave blank if not applicable">
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Photo of you or your logo (optional)</legend>
+        <div class="field">
+          <input type="file" id="jf-avatar" accept="image/png, image/jpeg, image/webp, image/gif">
+          <div class="hint">Shown next to your name on your profile and in search results.</div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Photos of finished work</legend>
+        <div id="photo-rows"></div>
+        <button type="button" class="add-photo-btn" id="add-photo">+ Add another photo</button>
+      </fieldset>
+
+      <button type="submit" class="btn block" id="join-submit">Create my listing</button>
+    </form>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>Fieldsheet is a directory, not a staffing agency — you book and pay each pro directly.</div>
+    <div>Already listed? Use the dashboard link you saved when you signed up.</div>
+  </div>
+</footer>
+
+<script src="/js/util.js"></script>
+<script src="/js/join.js"></script>
+</body>
+</html>

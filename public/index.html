@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fieldsheet — find and book trades people by their actual work</title>
+<meta name="description" content="Browse portfolios from plumbers, electricians, roofers, and other trades people, then book directly from their profile.">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="/">
+      <span class="mark">field<em>sheet</em></span>
+      <span class="sub">trade directory</span>
+    </a>
+    <nav class="site-nav">
+      <a href="/index.html">Browse</a>
+      <a href="/join.html" class="cta">List your work</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="kicker">Local trades, actual job photos</div>
+    <h1>Find someone who's done this kind of work before — not just someone who says they can.</h1>
+    <p class="lede">Every profile here is built around real jobs: photos, a written history, a license number where one applies. Look through the work, then send a booking request straight to the person who'd be doing it.</p>
+
+    <div class="search-panel">
+      <div class="search-row">
+        <input type="text" id="search-input" placeholder="Search by name, city, or trade…">
+      </div>
+      <div class="trade-chips" id="trade-chips">
+        <span class="chip active" data-trade="">All trades</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Listed pros</h2>
+      <span class="result-count" id="result-count"></span>
+    </div>
+    <div class="pro-grid" id="pro-grid"></div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>Fieldsheet is a directory, not a staffing agency — you book and pay each pro directly.</div>
+    <div>Run a trade business? <a href="/join.html">List your work here</a>.</div>
+  </div>
+</footer>
+
+<script src="/js/icons.js"></script>
+<script src="/js/util.js"></script>
+<script src="/js/home.js"></script>
+</body>
+</html>
