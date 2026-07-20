@@ -3,11 +3,13 @@ const proId = params.get('id');
 const token = params.get('token');
 const root = document.getElementById('dash-root');
 
+const MAX_PORTFOLIO_ITEMS = 12;
+
 function renderError(message) {
   root.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
 }
 
-function bookingRow(pro, booking) {
+function bookingRow(booking) {
   const div = document.createElement('div');
   div.className = 'booking-row';
   div.innerHTML = `
@@ -47,6 +49,258 @@ function bookingRow(pro, booking) {
   return div;
 }
 
+function renderRequests(bookings) {
+  const panel = document.getElementById('panel-requests');
+  panel.innerHTML = `
+    <div class="section-head">
+      <h2>Booking requests</h2>
+      <span class="result-count">${bookings.length} total</span>
+    </div>
+    <div class="booking-list" id="booking-list"></div>
+  `;
+  const list = document.getElementById('booking-list');
+  if (bookings.length === 0) {
+    list.innerHTML = `<div class="empty-state">No booking requests yet. Once your profile gets shared around, they'll show up here.</div>`;
+    return;
+  }
+  bookings.forEach((b) => list.appendChild(bookingRow(b)));
+}
+
+function existingPhotoHTML(item) {
+  const media = isPlaceholder(item.image_path)
+    ? `<div class="photo-tile" style="aspect-ratio:1/1;"></div>`
+    : `<img src="${escapeHtml(item.image_path)}" alt="${escapeHtml(item.caption || '')}">`;
+  return `
+    <div class="existing-photo" data-id="${item.id}">
+      ${media}
+      <button type="button" class="remove-existing-photo" title="Delete this photo">&times;</button>
+    </div>
+  `;
+}
+
+function addPhotoRow(container) {
+  const row = document.createElement('div');
+  row.className = 'photo-row';
+  row.innerHTML = `
+    <div class="field" style="margin-bottom:0;">
+      <label>Photo</label>
+      <input type="file" class="photo-file" accept="image/png, image/jpeg, image/webp, image/gif">
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label>Caption</label>
+      <input type="text" class="photo-caption" placeholder="e.g. Panel upgrade, 1950s colonial" maxlength="140">
+    </div>
+    <button type="button" class="remove-photo" title="Remove this row">&times;</button>
+  `;
+  row.querySelector('.remove-photo').addEventListener('click', () => row.remove());
+  container.appendChild(row);
+}
+
+function editPanelHTML(pro) {
+  return `
+    <div class="section-head">
+      <h2>Edit listing</h2>
+    </div>
+    <div id="edit-notice"></div>
+    <form id="edit-form">
+      <fieldset>
+        <legend>Basics</legend>
+        <div class="two-col">
+          <div class="field">
+            <label for="ef-name">Name or business name</label>
+            <input type="text" id="ef-name" required value="${escapeHtml(pro.name)}">
+          </div>
+          <div class="field">
+            <label for="ef-trade">Trade</label>
+            <select id="ef-trade" required></select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="ef-tagline">One line about what you do</label>
+          <input type="text" id="ef-tagline" maxlength="120" value="${escapeHtml(pro.tagline || '')}">
+        </div>
+        <div class="field">
+          <label for="ef-bio">Background</label>
+          <textarea id="ef-bio">${escapeHtml(pro.bio || '')}</textarea>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Contact & credentials</legend>
+        <div class="two-col">
+          <div class="field">
+            <label for="ef-location">City & state</label>
+            <input type="text" id="ef-location" required value="${escapeHtml(pro.location)}">
+          </div>
+          <div class="field">
+            <label for="ef-years">Years in business</label>
+            <input type="number" id="ef-years" min="0" max="80" value="${pro.years_experience || 0}">
+          </div>
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label for="ef-phone">Phone</label>
+            <input type="tel" id="ef-phone" required value="${escapeHtml(pro.phone)}">
+          </div>
+          <div class="field">
+            <label for="ef-email">Email</label>
+            <input type="email" id="ef-email" required value="${escapeHtml(pro.email)}">
+          </div>
+        </div>
+        <div class="field">
+          <label for="ef-license">License number</label>
+          <input type="text" id="ef-license" placeholder="Leave blank if not applicable" value="${escapeHtml(pro.license_number || '')}">
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Photo of you or your logo</legend>
+        <div class="field">
+          <div class="current-avatar" id="current-avatar">${avatarHTML(pro)}</div>
+          <input type="file" id="ef-avatar" accept="image/png, image/jpeg, image/webp, image/gif">
+          <div class="hint">Choose a file only if you want to replace your current photo.</div>
+        </div>
+      </fieldset>
+
+      <button type="submit" class="btn block" id="ef-submit">Save changes</button>
+    </form>
+
+    <fieldset style="margin-top: 28px;">
+      <legend>Photos of finished work</legend>
+      <div class="existing-photos" id="existing-photos"></div>
+      <div id="new-photo-rows"></div>
+      <button type="button" class="add-photo-btn" id="add-photo">+ Add another photo</button>
+      <div id="photo-notice"></div>
+      <button type="button" class="btn" id="upload-photos">Upload new photos</button>
+    </fieldset>
+  `;
+}
+
+async function wireEditPanel(pro) {
+  document.getElementById('panel-edit').innerHTML = editPanelHTML(pro);
+
+  const tradeSelect = document.getElementById('ef-trade');
+  const trades = await apiGet('/api/trades');
+  trades.forEach((trade) => {
+    const opt = document.createElement('option');
+    opt.value = trade;
+    opt.textContent = trade;
+    if (trade === pro.trade) opt.selected = true;
+    tradeSelect.appendChild(opt);
+  });
+
+  const existingPhotos = document.getElementById('existing-photos');
+
+  function renderExistingPhotos() {
+    existingPhotos.innerHTML = pro.portfolio.map(existingPhotoHTML).join('');
+    existingPhotos.querySelectorAll('.existing-photo').forEach((el) => {
+      el.querySelector('.remove-existing-photo').addEventListener('click', async () => {
+        if (!confirm('Delete this photo?')) return;
+        try {
+          await apiSend(`/api/pros/${proId}/photos/${el.dataset.id}`, 'DELETE', { token }, false);
+          pro.portfolio = pro.portfolio.filter((p) => String(p.id) !== el.dataset.id);
+          el.remove();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
+  }
+  renderExistingPhotos();
+
+  const newPhotoRows = document.getElementById('new-photo-rows');
+  document.getElementById('add-photo').addEventListener('click', () => addPhotoRow(newPhotoRows));
+
+  const editForm = document.getElementById('edit-form');
+  const editNotice = document.getElementById('edit-notice');
+  const editSubmit = document.getElementById('ef-submit');
+
+  editForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    editNotice.innerHTML = '';
+    editSubmit.disabled = true;
+    editSubmit.textContent = 'Saving…';
+
+    const fd = new FormData();
+    fd.append('token', token);
+    fd.append('name', document.getElementById('ef-name').value.trim());
+    fd.append('trade', tradeSelect.value);
+    fd.append('tagline', document.getElementById('ef-tagline').value.trim());
+    fd.append('bio', document.getElementById('ef-bio').value.trim());
+    fd.append('location', document.getElementById('ef-location').value.trim());
+    fd.append('years_experience', document.getElementById('ef-years').value || '0');
+    fd.append('phone', document.getElementById('ef-phone').value.trim());
+    fd.append('email', document.getElementById('ef-email').value.trim());
+    fd.append('license_number', document.getElementById('ef-license').value.trim());
+
+    const avatarFile = document.getElementById('ef-avatar').files[0];
+    if (avatarFile) fd.append('avatar', avatarFile);
+
+    try {
+      const updated = await apiSend(`/api/pros/${proId}`, 'PATCH', fd, true);
+      Object.assign(pro, updated);
+      document.getElementById('current-avatar').innerHTML = avatarHTML(pro);
+      editNotice.innerHTML = `<div class="notice">Changes saved.</div>`;
+    } catch (err) {
+      editNotice.innerHTML = `<div class="notice error">${escapeHtml(err.message)}</div>`;
+    } finally {
+      editSubmit.disabled = false;
+      editSubmit.textContent = 'Save changes';
+    }
+  });
+
+  const photoNotice = document.getElementById('photo-notice');
+  document.getElementById('upload-photos').addEventListener('click', async (e) => {
+    const rows = Array.from(newPhotoRows.querySelectorAll('.photo-row')).filter(
+      (row) => row.querySelector('.photo-file').files[0]
+    );
+    if (!rows.length) {
+      photoNotice.innerHTML = `<div class="notice error">Choose at least one photo first.</div>`;
+      return;
+    }
+    if (pro.portfolio.length + rows.length > MAX_PORTFOLIO_ITEMS) {
+      photoNotice.innerHTML = `<div class="notice error">You can have at most ${MAX_PORTFOLIO_ITEMS} photos.</div>`;
+      return;
+    }
+
+    const btn = e.target;
+    btn.disabled = true;
+    btn.textContent = 'Uploading…';
+    photoNotice.innerHTML = '';
+
+    const fd = new FormData();
+    fd.append('token', token);
+    rows.forEach((row) => {
+      fd.append('photos', row.querySelector('.photo-file').files[0]);
+      fd.append('captions', row.querySelector('.photo-caption').value.trim());
+    });
+
+    try {
+      const photos = await apiSend(`/api/pros/${proId}/photos`, 'POST', fd, true);
+      pro.portfolio = photos;
+      renderExistingPhotos();
+      rows.forEach((row) => row.remove());
+      photoNotice.innerHTML = `<div class="notice">Photos added.</div>`;
+    } catch (err) {
+      photoNotice.innerHTML = `<div class="notice error">${escapeHtml(err.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Upload new photos';
+    }
+  });
+}
+
+function wireTabs() {
+  document.querySelectorAll('.dash-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.dash-tab').forEach((t) => t.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelectorAll('.dash-panel').forEach((p) => p.classList.remove('active'));
+      document.getElementById(`panel-${tab.dataset.tab}`).classList.add('active');
+    });
+  });
+}
+
 async function init() {
   if (!proId || !token) {
     return renderError('This link is missing its access token. Use the exact dashboard link you were given when you signed up.');
@@ -64,19 +318,17 @@ async function init() {
   document.title = `Dashboard — ${pro.name} — Fieldsheet`;
 
   root.innerHTML = `
-    <div class="section-head">
-      <h2>Booking requests for ${escapeHtml(pro.name)}</h2>
-      <span class="result-count">${bookings.length} total</span>
+    <div class="dash-tabs">
+      <button type="button" class="dash-tab active" data-tab="requests">Requests</button>
+      <button type="button" class="dash-tab" data-tab="edit">Edit listing</button>
     </div>
-    <div class="booking-list" id="booking-list"></div>
+    <div class="dash-panel active" id="panel-requests"></div>
+    <div class="dash-panel" id="panel-edit"></div>
   `;
 
-  const list = document.getElementById('booking-list');
-  if (bookings.length === 0) {
-    list.innerHTML = `<div class="empty-state">No booking requests yet. Once your profile gets shared around, they'll show up here.</div>`;
-    return;
-  }
-  bookings.forEach((b) => list.appendChild(bookingRow(pro, b)));
+  wireTabs();
+  renderRequests(bookings);
+  wireEditPanel(pro);
 }
 
 init();

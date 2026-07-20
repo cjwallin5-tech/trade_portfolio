@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
@@ -5,6 +6,9 @@ const multer = require('multer');
 const fs = require('fs');
 const db = require('./db');
 const TRADES = require('./trades');
+const { sendBookingNotification } = require('./mailer');
+
+const MAX_PORTFOLIO_ITEMS = 12;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -42,6 +46,17 @@ function toArray(value) {
 function proPublic(row) {
   const { dashboard_token, ...rest } = row;
   return rest;
+}
+
+function findProWithToken(id, token) {
+  const pro = db.prepare('SELECT * FROM pros WHERE id = ?').get(id);
+  if (!pro || !token || pro.dashboard_token !== token) return null;
+  return pro;
+}
+
+function unlinkUpload(imagePath) {
+  if (!imagePath || imagePath.startsWith('placeholder:')) return;
+  fs.unlink(path.join(publicDir, imagePath), () => {});
 }
 
 app.get('/api/trades', (req, res) => {
@@ -132,7 +147,7 @@ app.post('/api/bookings', (req, res) => {
   if (!pro_id || !client_name || !client_email) {
     return res.status(400).json({ error: 'pro_id, client_name, and client_email are required.' });
   }
-  const pro = db.prepare('SELECT id FROM pros WHERE id = ?').get(pro_id);
+  const pro = db.prepare('SELECT id, name, email, dashboard_token FROM pros WHERE id = ?').get(pro_id);
   if (!pro) return res.status(404).json({ error: 'That professional does not exist.' });
 
   const insert = db.prepare(`
@@ -140,7 +155,114 @@ app.post('/api/bookings', (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?)
   `);
   const info = insert.run(pro_id, client_name, client_email, client_phone || null, preferred_date || null, job_description || null);
+
+  const dashboardUrl = `${req.protocol}://${req.get('host')}/dashboard.html?id=${pro.id}&token=${pro.dashboard_token}`;
+  sendBookingNotification({
+    pro,
+    booking: { client_name, client_email, client_phone, preferred_date, job_description },
+    dashboardUrl,
+  });
+
   res.status(201).json({ id: info.lastInsertRowid });
+});
+
+app.patch('/api/pros/:id', upload.fields([{ name: 'avatar', maxCount: 1 }]), (req, res) => {
+  const pro = findProWithToken(req.params.id, req.body.token);
+  if (!pro) {
+    const avatarFile = req.files?.avatar?.[0];
+    if (avatarFile) fs.unlink(avatarFile.path, () => {});
+    return res.status(403).json({ error: 'Invalid or missing dashboard token.' });
+  }
+
+  const { name, trade, tagline, bio, location, phone, email, years_experience, license_number } = req.body;
+  if (!name || !trade || !location || !phone || !email) {
+    return res.status(400).json({ error: 'Name, trade, location, phone, and email are required.' });
+  }
+  if (!TRADES.includes(trade)) {
+    return res.status(400).json({ error: 'Unknown trade category.' });
+  }
+
+  const avatarFile = req.files?.avatar?.[0];
+  const params = {
+    id: pro.id,
+    name,
+    trade,
+    tagline: tagline || null,
+    bio: bio || null,
+    location,
+    phone,
+    email,
+    years_experience: Number.parseInt(years_experience, 10) || 0,
+    license_number: license_number || null,
+  };
+
+  if (avatarFile) {
+    params.avatar_path = `/uploads/${avatarFile.filename}`;
+    db.prepare(`
+      UPDATE pros SET name=@name, trade=@trade, tagline=@tagline, bio=@bio, location=@location,
+        phone=@phone, email=@email, years_experience=@years_experience, license_number=@license_number,
+        avatar_path=@avatar_path
+      WHERE id=@id
+    `).run(params);
+    unlinkUpload(pro.avatar_path);
+  } else {
+    db.prepare(`
+      UPDATE pros SET name=@name, trade=@trade, tagline=@tagline, bio=@bio, location=@location,
+        phone=@phone, email=@email, years_experience=@years_experience, license_number=@license_number
+      WHERE id=@id
+    `).run(params);
+  }
+
+  res.json(proPublic(db.prepare('SELECT * FROM pros WHERE id = ?').get(pro.id)));
+});
+
+app.post('/api/pros/:id/photos', upload.fields([{ name: 'photos', maxCount: 10 }]), (req, res) => {
+  const photoFiles = req.files?.photos || [];
+  const pro = findProWithToken(req.params.id, req.body.token);
+  if (!pro) {
+    photoFiles.forEach((file) => fs.unlink(file.path, () => {}));
+    return res.status(403).json({ error: 'Invalid or missing dashboard token.' });
+  }
+  if (!photoFiles.length) {
+    return res.status(400).json({ error: 'No photos were uploaded.' });
+  }
+
+  const { count } = db.prepare('SELECT COUNT(*) AS count FROM portfolio_items WHERE pro_id = ?').get(pro.id);
+  if (count + photoFiles.length > MAX_PORTFOLIO_ITEMS) {
+    photoFiles.forEach((file) => fs.unlink(file.path, () => {}));
+    return res.status(400).json({ error: `You can have at most ${MAX_PORTFOLIO_ITEMS} photos.` });
+  }
+
+  const captions = toArray(req.body.captions);
+  const { next } = db
+    .prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM portfolio_items WHERE pro_id = ?')
+    .get(pro.id);
+  const insertPhoto = db.prepare(`
+    INSERT INTO portfolio_items (pro_id, image_path, caption, sort_order)
+    VALUES (?, ?, ?, ?)
+  `);
+  photoFiles.forEach((file, idx) => {
+    insertPhoto.run(pro.id, `/uploads/${file.filename}`, captions[idx] || null, next + idx);
+  });
+
+  const photos = db
+    .prepare('SELECT id, image_path, caption FROM portfolio_items WHERE pro_id = ? ORDER BY sort_order ASC, id ASC')
+    .all(pro.id);
+  res.status(201).json(photos);
+});
+
+app.delete('/api/pros/:id/photos/:photoId', (req, res) => {
+  const pro = findProWithToken(req.params.id, req.body.token);
+  if (!pro) return res.status(403).json({ error: 'Invalid or missing dashboard token.' });
+
+  const photo = db
+    .prepare('SELECT * FROM portfolio_items WHERE id = ? AND pro_id = ?')
+    .get(req.params.photoId, pro.id);
+  if (!photo) return res.status(404).json({ error: 'Not found' });
+
+  db.prepare('DELETE FROM portfolio_items WHERE id = ?').run(photo.id);
+  unlinkUpload(photo.image_path);
+  res.json({ ok: true });
 });
 
 app.get('/api/pros/:id/bookings', (req, res) => {
