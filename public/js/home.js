@@ -38,8 +38,9 @@ function renderCard(pro) {
   const a = document.createElement('a');
   a.className = 'pro-card';
   a.href = `/pro.html?id=${pro.id}`;
+  a.style.setProperty('--card-accent', colorFor(pro.trade));
   const thumb = isPlaceholder(pro.cover_photo)
-    ? photoTileHTML(pro.trade)
+    ? photoTileHTML(pro.trade, seedFromPlaceholder(pro.cover_photo))
     : `<img src="${escapeHtml(pro.cover_photo)}" alt="Work by ${escapeHtml(pro.name)}">`;
   a.innerHTML = `
     <div class="thumb">${thumb}</div>
@@ -73,7 +74,46 @@ async function loadPros() {
     return;
   }
 
-  pros.forEach((pro) => gridEl.appendChild(renderCard(pro)));
+  pros.forEach((pro, i) => {
+    const card = renderCard(pro);
+    card.style.setProperty('--i', i);
+    gridEl.appendChild(card);
+  });
+}
+
+const HERO_SLOTS = [
+  { top: '0%', left: '2%', rotate: -6, z: 2 },
+  { top: '10%', left: '46%', rotate: 4, z: 3 },
+  { top: '52%', left: '0%', rotate: 3, z: 1 },
+  { top: '42%', left: '50%', rotate: -4, z: 4 },
+];
+
+async function loadHeroVisual() {
+  const heroEl = document.getElementById('hero-visual');
+  if (!heroEl) return;
+  try {
+    const pros = await apiGet('/api/pros');
+    const picks = pros.slice(0, HERO_SLOTS.length);
+    picks.forEach((pro, i) => {
+      const slot = HERO_SLOTS[i];
+      const card = document.createElement('div');
+      card.className = 'hero-photo';
+      card.style.top = slot.top;
+      card.style.left = slot.left;
+      card.style.zIndex = slot.z;
+      card.style.transform = `rotate(${slot.rotate}deg)`;
+      const thumb = isPlaceholder(pro.cover_photo)
+        ? photoTileHTML(pro.trade, seedFromPlaceholder(pro.cover_photo))
+        : `<img src="${escapeHtml(pro.cover_photo)}" alt="">`;
+      card.innerHTML = `
+        <div class="thumb">${thumb}</div>
+        <div class="cap">${iconFor(pro.trade)}<span>${escapeHtml(pro.name)} · ${escapeHtml(pro.location)}</span></div>
+      `;
+      heroEl.appendChild(card);
+    });
+  } catch (err) {
+    /* hero visual is decorative; fail silently */
+  }
 }
 
 searchInput.addEventListener('input', () => {
@@ -82,3 +122,4 @@ searchInput.addEventListener('input', () => {
 });
 
 loadTrades().then(loadPros);
+loadHeroVisual();

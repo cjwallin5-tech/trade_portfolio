@@ -16,16 +16,17 @@
     </a>
     <nav class="site-nav">
       <a href="/index.html">Browse</a>
-      <a href="/join.html" class="cta">List your work</a>
+      <a href="/login.html">Pro login</a>
+      <a href="/signup.html" class="cta">Sign up</a>
     </nav>
   </div>
 </header>
 
 <div class="wrap">
   <div class="form-page" id="form-page">
-    <div class="kicker" style="font-family: var(--mono); font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-dark); margin-bottom: 10px;">List your work</div>
-    <h1 style="font-size: 28px;">Put your jobs in front of people who are actually looking.</h1>
-    <p style="max-width: 560px;">Fill this out once. Add a few photos of finished work — that's what people look at first. You'll get a private link at the end to see booking requests as they come in, so save it somewhere.</p>
+    <div class="kicker" id="join-kicker" style="font-family: var(--mono); font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-dark); margin-bottom: 10px;">List your work</div>
+    <h1 id="join-title" style="font-size: 28px;">Put your jobs in front of people who are actually looking.</h1>
+    <p id="join-intro" style="max-width: 560px;">Fill this out once. Add a few photos of finished work — that's what people look at first. You'll get a private link at the end to see booking requests as they come in, so save it somewhere.</p>
 
     <div id="join-notice"></div>
 
@@ -73,13 +74,28 @@
           </div>
           <div class="field">
             <label for="jf-email">Email</label>
-            <input type="email" id="jf-email" required>
+            <input type="email" id="jf-email" required autocomplete="username">
           </div>
         </div>
         <div class="field">
           <label for="jf-license">License number (if your trade requires one)</label>
           <input type="text" id="jf-license" placeholder="Leave blank if not applicable">
         </div>
+      </fieldset>
+
+      <fieldset id="jf-login-fieldset">
+        <legend>Login</legend>
+        <div class="two-col">
+          <div class="field">
+            <label for="jf-password">Password</label>
+            <input type="password" id="jf-password" required minlength="8" autocomplete="new-password">
+          </div>
+          <div class="field">
+            <label for="jf-password-confirm">Confirm password</label>
+            <input type="password" id="jf-password-confirm" required minlength="8" autocomplete="new-password">
+          </div>
+        </div>
+        <div class="hint">At least 8 characters. You'll use this with your email to log in and check bookings later.</div>
       </fieldset>
 
       <fieldset>
@@ -97,6 +113,7 @@
       </fieldset>
 
       <button type="submit" class="btn block" id="join-submit">Create my listing</button>
+
     </form>
   </div>
 </div>
@@ -104,7 +121,7 @@
 <footer class="site-footer">
   <div class="wrap">
     <div>Fieldsheet is a directory, not a staffing agency — you book and pay each pro directly.</div>
-    <div>Already listed? Use the dashboard link you saved when you signed up.</div>
+    <div>Already listed? <a href="/login.html">Log in</a> or use the dashboard link you saved when you signed up.</div>
   </div>
 </footer>
 

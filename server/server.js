@@ -1,5 +1,7 @@
 require('dotenv').config();
 const express = require('express');
+const session = require('express-session');
+const bcrypt = require('bcryptjs');
 const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
@@ -17,7 +19,19 @@ const publicDir = path.join(__dirname, '..', 'public');
 const uploadsDir = path.join(publicDir, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
+if (!process.env.SESSION_SECRET) {
+  console.warn('SESSION_SECRET is not set — using an insecure dev default. Set it in .env for production.');
+}
+
 app.use(express.json());
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'dev-only-insecure-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { httpOnly: true, sameSite: 'lax', maxAge: 30 * 24 * 60 * 60 * 1000 },
+  })
+);
 app.use(express.static(publicDir));
 
 const storage = multer.diskStorage({
@@ -44,14 +58,17 @@ function toArray(value) {
 }
 
 function proPublic(row) {
-  const { dashboard_token, ...rest } = row;
+  const { dashboard_token, password_hash, ...rest } = row;
   return rest;
 }
 
-function findProWithToken(id, token) {
+// Accepts either a logged-in session for this pro or the legacy dashboard token.
+function resolvePro(req, id, token) {
   const pro = db.prepare('SELECT * FROM pros WHERE id = ?').get(id);
-  if (!pro || !token || pro.dashboard_token !== token) return null;
-  return pro;
+  if (!pro) return null;
+  if (req.session && req.session.proId === pro.id) return pro;
+  if (token && pro.dashboard_token === token) return pro;
+  return null;
 }
 
 function unlinkUpload(imagePath) {
@@ -68,7 +85,7 @@ app.get('/api/pros', (req, res) => {
   let sql = `
     SELECT pros.*,
       (SELECT image_path FROM portfolio_items WHERE pro_id = pros.id ORDER BY sort_order ASC, id ASC LIMIT 1) AS cover_photo
-    FROM pros WHERE 1=1
+    FROM pros WHERE profile_complete = 1
   `;
   const params = [];
   if (trade && TRADES.includes(trade)) {
@@ -95,7 +112,7 @@ app.get('/api/pros/:id', (req, res) => {
 });
 
 app.post('/api/pros', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'photos', maxCount: 10 }]), (req, res) => {
-  const { name, trade, tagline, bio, location, phone, email, years_experience, license_number } = req.body;
+  const { name, trade, tagline, bio, location, phone, email, years_experience, license_number, password } = req.body;
 
   if (!name || !trade || !location || !phone || !email) {
     return res.status(400).json({ error: 'Name, trade, location, phone, and email are required.' });
@@ -103,16 +120,24 @@ app.post('/api/pros', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'p
   if (!TRADES.includes(trade)) {
     return res.status(400).json({ error: 'Unknown trade category.' });
   }
+  if (!password || password.length < 8) {
+    return res.status(400).json({ error: 'Choose a password with at least 8 characters.' });
+  }
+  const existing = db.prepare('SELECT id FROM pros WHERE email = ? COLLATE NOCASE').get(email);
+  if (existing) {
+    return res.status(400).json({ error: 'An account with that email already exists. Log in instead.' });
+  }
 
   const avatarFile = req.files?.avatar?.[0];
   const photoFiles = req.files?.photos || [];
   const captions = toArray(req.body.captions);
 
   const token = crypto.randomBytes(16).toString('hex');
+  const passwordHash = bcrypt.hashSync(password, 10);
 
   const insertPro = db.prepare(`
-    INSERT INTO pros (name, trade, tagline, bio, location, phone, email, years_experience, license_number, avatar_path, dashboard_token)
-    VALUES (@name, @trade, @tagline, @bio, @location, @phone, @email, @years_experience, @license_number, @avatar_path, @dashboard_token)
+    INSERT INTO pros (name, trade, tagline, bio, location, phone, email, years_experience, license_number, avatar_path, dashboard_token, password_hash)
+    VALUES (@name, @trade, @tagline, @bio, @location, @phone, @email, @years_experience, @license_number, @avatar_path, @dashboard_token, @password_hash)
   `);
   const insertPhoto = db.prepare(`
     INSERT INTO portfolio_items (pro_id, image_path, caption, sort_order)
@@ -130,6 +155,7 @@ app.post('/api/pros', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'p
     years_experience: Number.parseInt(years_experience, 10) || 0,
     license_number: license_number || null,
     avatar_path: avatarFile ? `/uploads/${avatarFile.filename}` : null,
+    password_hash: passwordHash,
     dashboard_token: token,
   });
 
@@ -167,11 +193,11 @@ app.post('/api/bookings', (req, res) => {
 });
 
 app.patch('/api/pros/:id', upload.fields([{ name: 'avatar', maxCount: 1 }]), (req, res) => {
-  const pro = findProWithToken(req.params.id, req.body.token);
+  const pro = resolvePro(req, req.params.id, req.body.token);
   if (!pro) {
     const avatarFile = req.files?.avatar?.[0];
     if (avatarFile) fs.unlink(avatarFile.path, () => {});
-    return res.status(403).json({ error: 'Invalid or missing dashboard token.' });
+    return res.status(403).json({ error: 'Not authorized.' });
   }
 
   const { name, trade, tagline, bio, location, phone, email, years_experience, license_number } = req.body;
@@ -201,14 +227,15 @@ app.patch('/api/pros/:id', upload.fields([{ name: 'avatar', maxCount: 1 }]), (re
     db.prepare(`
       UPDATE pros SET name=@name, trade=@trade, tagline=@tagline, bio=@bio, location=@location,
         phone=@phone, email=@email, years_experience=@years_experience, license_number=@license_number,
-        avatar_path=@avatar_path
+        avatar_path=@avatar_path, profile_complete=1
       WHERE id=@id
     `).run(params);
     unlinkUpload(pro.avatar_path);
   } else {
     db.prepare(`
       UPDATE pros SET name=@name, trade=@trade, tagline=@tagline, bio=@bio, location=@location,
-        phone=@phone, email=@email, years_experience=@years_experience, license_number=@license_number
+        phone=@phone, email=@email, years_experience=@years_experience, license_number=@license_number,
+        profile_complete=1
       WHERE id=@id
     `).run(params);
   }
@@ -218,10 +245,10 @@ app.patch('/api/pros/:id', upload.fields([{ name: 'avatar', maxCount: 1 }]), (re
 
 app.post('/api/pros/:id/photos', upload.fields([{ name: 'photos', maxCount: 10 }]), (req, res) => {
   const photoFiles = req.files?.photos || [];
-  const pro = findProWithToken(req.params.id, req.body.token);
+  const pro = resolvePro(req, req.params.id, req.body.token);
   if (!pro) {
     photoFiles.forEach((file) => fs.unlink(file.path, () => {}));
-    return res.status(403).json({ error: 'Invalid or missing dashboard token.' });
+    return res.status(403).json({ error: 'Not authorized.' });
   }
   if (!photoFiles.length) {
     return res.status(400).json({ error: 'No photos were uploaded.' });
@@ -252,8 +279,8 @@ app.post('/api/pros/:id/photos', upload.fields([{ name: 'photos', maxCount: 10 }
 });
 
 app.delete('/api/pros/:id/photos/:photoId', (req, res) => {
-  const pro = findProWithToken(req.params.id, req.body.token);
-  if (!pro) return res.status(403).json({ error: 'Invalid or missing dashboard token.' });
+  const pro = resolvePro(req, req.params.id, req.body.token);
+  if (!pro) return res.status(403).json({ error: 'Not authorized.' });
 
   const photo = db
     .prepare('SELECT * FROM portfolio_items WHERE id = ? AND pro_id = ?')
@@ -266,11 +293,8 @@ app.delete('/api/pros/:id/photos/:photoId', (req, res) => {
 });
 
 app.get('/api/pros/:id/bookings', (req, res) => {
-  const { token } = req.query;
-  const pro = db.prepare('SELECT id, dashboard_token FROM pros WHERE id = ?').get(req.params.id);
-  if (!pro || pro.dashboard_token !== token) {
-    return res.status(403).json({ error: 'Invalid or missing dashboard token.' });
-  }
+  const pro = resolvePro(req, req.params.id, req.query.token);
+  if (!pro) return res.status(403).json({ error: 'Not authorized.' });
   const bookings = db
     .prepare('SELECT * FROM bookings WHERE pro_id = ? ORDER BY created_at DESC')
     .all(pro.id);
@@ -281,14 +305,75 @@ app.patch('/api/bookings/:id', (req, res) => {
   const { token, status } = req.body;
   const booking = db.prepare('SELECT * FROM bookings WHERE id = ?').get(req.params.id);
   if (!booking) return res.status(404).json({ error: 'Not found' });
-  const pro = db.prepare('SELECT dashboard_token FROM pros WHERE id = ?').get(booking.pro_id);
-  if (!pro || pro.dashboard_token !== token) {
-    return res.status(403).json({ error: 'Invalid or missing dashboard token.' });
+  const pro = resolvePro(req, booking.pro_id, token);
+  if (!pro) {
+    return res.status(403).json({ error: 'Not authorized.' });
   }
   if (!['new', 'contacted', 'booked', 'declined'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status.' });
   }
   db.prepare('UPDATE bookings SET status = ? WHERE id = ?').run(status, req.params.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/auth/signup', (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Choose a password with at least 8 characters.' });
+  }
+  const existing = db.prepare('SELECT id FROM pros WHERE email = ? COLLATE NOCASE').get(email);
+  if (existing) {
+    return res.status(400).json({ error: 'An account with that email already exists. Log in instead.' });
+  }
+
+  const token = crypto.randomBytes(16).toString('hex');
+  const passwordHash = bcrypt.hashSync(password, 10);
+
+  const info = db.prepare(`
+    INSERT INTO pros (name, trade, location, email, dashboard_token, password_hash, profile_complete)
+    VALUES ('', '', '', @email, @dashboard_token, @password_hash, 0)
+  `).run({ email, dashboard_token: token, password_hash: passwordHash });
+
+  req.session.proId = info.lastInsertRowid;
+  res.status(201).json({ id: info.lastInsertRowid });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+  const pro = db.prepare('SELECT * FROM pros WHERE email = ? COLLATE NOCASE').get(email);
+  if (!pro || !pro.password_hash || !bcrypt.compareSync(password, pro.password_hash)) {
+    return res.status(401).json({ error: 'Incorrect email or password.' });
+  }
+  req.session.proId = pro.id;
+  res.json({ id: pro.id, name: pro.name });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  req.session.destroy(() => res.json({ ok: true }));
+});
+
+app.get('/api/auth/me', (req, res) => {
+  if (!req.session || !req.session.proId) return res.status(401).json({ error: 'Not logged in.' });
+  const pro = db.prepare('SELECT id, name FROM pros WHERE id = ?').get(req.session.proId);
+  if (!pro) return res.status(401).json({ error: 'Not logged in.' });
+  res.json(pro);
+});
+
+app.post('/api/auth/set-password', (req, res) => {
+  const { id, token, password } = req.body;
+  if (!password || password.length < 8) {
+    return res.status(400).json({ error: 'Choose a password with at least 8 characters.' });
+  }
+  const pro = resolvePro(req, id, token);
+  if (!pro) return res.status(403).json({ error: 'Not authorized.' });
+  db.prepare('UPDATE pros SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(password, 10), pro.id);
+  req.session.proId = pro.id;
   res.json({ ok: true });
 });
 

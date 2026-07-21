@@ -20,7 +20,7 @@ function galleryHTML(pro) {
       ${pro.portfolio
         .map((item, i) => {
           const media = isPlaceholder(item.image_path)
-            ? photoTileHTML(pro.trade)
+            ? photoTileHTML(pro.trade, seedFromPlaceholder(item.image_path))
             : `<img src="${escapeHtml(item.image_path)}" alt="${escapeHtml(item.caption || pro.trade + ' work')}">`;
           return `
         <figure data-index="${i}">

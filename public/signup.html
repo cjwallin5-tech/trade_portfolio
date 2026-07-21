@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign up — Fieldsheet</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="/">
+      <span class="mark">field<em>sheet</em></span>
+      <span class="sub">trade directory</span>
+    </a>
+    <nav class="site-nav">
+      <a href="/index.html">Browse</a>
+      <a href="/login.html">Pro login</a>
+      <a href="/signup.html" class="cta">Sign up</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="form-page" id="form-page" style="max-width: 420px;">
+    <div class="kicker" style="font-family: var(--mono); font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-dark); margin-bottom: 10px;">New applicant</div>
+    <h1 style="font-size: 28px;">Create your account.</h1>
+    <p>Just an email and password to start. You'll fill in your trade, location, and photos next.</p>
+
+    <div id="signup-notice"></div>
+
+    <form id="signup-form">
+      <div class="field">
+        <label for="sf-email">Email</label>
+        <input type="email" id="sf-email" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="sf-password">Password</label>
+        <input type="password" id="sf-password" required minlength="8" autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label for="sf-password-confirm">Confirm password</label>
+        <input type="password" id="sf-password-confirm" required minlength="8" autocomplete="new-password">
+      </div>
+      <div class="hint">At least 8 characters.</div>
+      <button type="submit" class="btn block" id="signup-submit">Create account</button>
+    </form>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>Fieldsheet is a directory, not a staffing agency — you book and pay each pro directly.</div>
+    <div>Already have an account? <a href="/login.html">Log in</a>.</div>
+  </div>
+</footer>
+
+<script src="/js/util.js"></script>
+<script src="/js/signup.js"></script>
+</body>
+</html>

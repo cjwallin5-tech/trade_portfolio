@@ -50,4 +50,12 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_bookings_pro ON bookings(pro_id);
 `);
 
+const proColumns = db.prepare('PRAGMA table_info(pros)').all().map((col) => col.name);
+if (!proColumns.includes('password_hash')) {
+  db.exec('ALTER TABLE pros ADD COLUMN password_hash TEXT');
+}
+if (!proColumns.includes('profile_complete')) {
+  db.exec('ALTER TABLE pros ADD COLUMN profile_complete INTEGER NOT NULL DEFAULT 1');
+}
+
 module.exports = db;

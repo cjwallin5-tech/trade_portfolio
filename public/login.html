@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pro login — Fieldsheet</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="/">
+      <span class="mark">field<em>sheet</em></span>
+      <span class="sub">trade directory</span>
+    </a>
+    <nav class="site-nav">
+      <a href="/index.html">Browse</a>
+      <a href="/signup.html" class="cta">Sign up</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="form-page" id="form-page" style="max-width: 420px;">
+    <div class="kicker" style="font-family: var(--mono); font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-dark); margin-bottom: 10px;">Pro login</div>
+    <h1 style="font-size: 28px;">See if you've been booked.</h1>
+    <p>Log in to check booking requests and edit your listing.</p>
+
+    <div id="login-notice"></div>
+
+    <form id="login-form">
+      <div class="field">
+        <label for="lf-email">Email</label>
+        <input type="email" id="lf-email" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="lf-password">Password</label>
+        <input type="password" id="lf-password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn block" id="login-submit">Log in</button>
+    </form>
+
+    <p class="hint" style="margin-top: 16px;">
+      First time logging in? Open the private dashboard link from your signup confirmation (or a booking email) and set a password from the "Edit listing" tab.
+    </p>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>Fieldsheet is a directory, not a staffing agency — you book and pay each pro directly.</div>
+    <div>Not listed yet? <a href="/signup.html">List your work here</a>.</div>
+  </div>
+</footer>
+
+<script src="/js/util.js"></script>
+<script src="/js/login.js"></script>
+</body>
+</html>

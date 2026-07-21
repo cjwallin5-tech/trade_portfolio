@@ -20,17 +20,22 @@ function avatarHTML(pro) {
   if (pro.avatar_path && !isPlaceholder(pro.avatar_path)) {
     return `<img src="${escapeHtml(pro.avatar_path)}" alt="Photo of ${escapeHtml(pro.name)}">`;
   }
-  const bg = colorFor(pro.trade);
-  return `<div class="avatar" style="background:${bg}">${escapeHtml(initials(pro.name))}</div>`;
+  const seed = seedFromPlaceholder(pro.avatar_path) || pro.name;
+  const pattern = avatarPatternDataUri(pro.trade, seed);
+  return `<div class="avatar" style="background-image:url('${pattern}')">${escapeHtml(initials(pro.name))}</div>`;
 }
 
 function isPlaceholder(path) {
   return !path || String(path).startsWith('placeholder:');
 }
 
-function photoTileHTML(trade) {
-  const bg = colorFor(trade);
-  return `<div class="photo-tile" style="background:${bg}">${iconFor(trade)}<span>${escapeHtml(trade)}</span></div>`;
+function seedFromPlaceholder(path) {
+  const s = String(path || '');
+  return s.startsWith('placeholder:') ? s.slice('placeholder:'.length) : s;
+}
+
+function photoTileHTML(trade, seed) {
+  return sceneFor(trade, seed);
 }
 
 function formatDate(value) {

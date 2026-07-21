@@ -1,5 +1,8 @@
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const db = require('./db');
+
+const DEMO_PASSWORD = 'fieldsheet-demo';
 
 const pros = [
   {
@@ -167,8 +170,8 @@ const pros = [
 ];
 
 const insertPro = db.prepare(`
-  INSERT INTO pros (name, trade, tagline, bio, location, phone, email, years_experience, license_number, avatar_path, dashboard_token)
-  VALUES (@name, @trade, @tagline, @bio, @location, @phone, @email, @years_experience, @license_number, @avatar_path, @dashboard_token)
+  INSERT INTO pros (name, trade, tagline, bio, location, phone, email, years_experience, license_number, avatar_path, dashboard_token, password_hash)
+  VALUES (@name, @trade, @tagline, @bio, @location, @phone, @email, @years_experience, @license_number, @avatar_path, @dashboard_token, @password_hash)
 `);
 
 const insertPhoto = db.prepare(`
@@ -180,6 +183,8 @@ const seedAll = db.transaction(() => {
   db.prepare('DELETE FROM bookings').run();
   db.prepare('DELETE FROM portfolio_items').run();
   db.prepare('DELETE FROM pros').run();
+
+  const demoPasswordHash = bcrypt.hashSync(DEMO_PASSWORD, 10);
 
   for (const pro of pros) {
     const info = insertPro.run({
@@ -194,6 +199,7 @@ const seedAll = db.transaction(() => {
       license_number: pro.license_number,
       avatar_path: `placeholder:${pro.avatar_seed}`,
       dashboard_token: crypto.randomBytes(16).toString('hex'),
+      password_hash: demoPasswordHash,
     });
     const proId = info.lastInsertRowid;
     pro.portfolio.forEach((item, idx) => {
@@ -206,3 +212,4 @@ seedAll();
 
 const count = db.prepare('SELECT COUNT(*) AS n FROM pros').get().n;
 console.log(`Seeded ${count} pros.`);
+console.log(`Demo login password for every seeded pro: ${DEMO_PASSWORD}`);
