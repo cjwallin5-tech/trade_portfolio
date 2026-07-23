@@ -9,30 +9,43 @@ const fs = require('fs');
 const db = require('./db');
 const TRADES = require('./trades');
 const { sendBookingNotification } = require('./mailer');
+const SqliteStore = require('better-sqlite3-session-store')(session);
 
 const MAX_PORTFOLIO_ITEMS = 12;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const isProduction = process.env.NODE_ENV === 'production';
 const publicDir = path.join(__dirname, '..', 'public');
-const uploadsDir = path.join(publicDir, 'uploads');
+const uploadsDir = process.env.UPLOADS_DIR || path.join(publicDir, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 if (!process.env.SESSION_SECRET) {
   console.warn('SESSION_SECRET is not set — using an insecure dev default. Set it in .env for production.');
 }
 
+// Railway (and most PaaS providers) terminate TLS at a proxy in front of the app,
+// so Express needs to trust the X-Forwarded-* headers to know the request was HTTPS.
+if (isProduction) app.set('trust proxy', 1);
+
 app.use(express.json());
 app.use(
   session({
+    store: new SqliteStore({ client: db, expired: { clear: true, intervalMs: 15 * 60 * 1000 } }),
     secret: process.env.SESSION_SECRET || 'dev-only-insecure-secret',
     resave: false,
     saveUninitialized: false,
-    cookie: { httpOnly: true, sameSite: 'lax', maxAge: 30 * 24 * 60 * 60 * 1000 },
+    cookie: {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: isProduction,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    },
   })
 );
 app.use(express.static(publicDir));
+app.use('/uploads', express.static(uploadsDir));
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),
