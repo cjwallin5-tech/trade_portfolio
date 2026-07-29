@@ -110,7 +110,7 @@ function weeklyBookingsChart(bookings) {
         <div class="trend-bar-label">${escapeHtml(label)}</div>
       </div>`;
   }).join('');
-  return `<div class="trend-chart" role="img" aria-label="Booking requests received per week, last 8 weeks">${bars}</div>`;
+  return `<div class="trend-chart-scroll"><div class="trend-chart" role="img" aria-label="Booking requests received per week, last 8 weeks">${bars}</div></div>`;
 }
 
 function statsAndChartsHTML(bookings) {
